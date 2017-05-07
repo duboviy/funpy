@@ -1,0 +1,117 @@
+#! /usr/bin/python
+# Church encoding (booleans, conditions, numerals, etc.) in Python.
+
+# Alonzo Church (1932) — λ-calculus
+# L, M, N ::= x | (λx. N) | (L M)
+
+# Rules:
+# Alpha equivalence     lambda x: x == lambda y: y
+# Beta reduction        (lambda x: x)(y) == y
+
+# λ-calculus
+
+identity_ = lambda x: x
+self_apply_ = lambda x: x(x)
+
+assert identity_(identity_) == identity_
+assert self_apply_(identity_) == identity_
+
+# λ-calculus Recursion
+
+try:
+    self_apply_(self_apply_)
+except RecursionError:
+    pass
+else:
+    raise RuntimeError("Should raise RecursionError: maximum recursion depth exceeded")
+
+
+# λ-calculus Church Booleans
+
+true_  = lambda x: lambda y: (x)
+false_ = lambda x: lambda y: (y)
+
+assert (true_)(True)(False) == True
+assert (false_)(True)(False) == False
+
+
+# λ-calculus Boolean Logical Operations
+
+# p, q - predicates (Church booleans)
+if_  = lambda p: lambda then_: lambda else_: (p)(then_)(else_)
+and_ = lambda p: lambda q: (p)(q)(p)
+or_  = lambda p: lambda q: (p)(p)(q)
+not_ = lambda p: lambda x: lambda y: (p)(y)(x)
+
+assert (if_)(true_)(True)(False) == True
+assert (if_)(false_)(True)(False) == False
+
+assert (and_)(true_)(true_) == (true_)
+assert (and_)(true_)(false_) == (false_)
+assert (and_)(false_)(true_) == (false_)
+assert (and_)(false_)(false_) == (false_)
+
+assert (or_)(true_)(true_) == (true_)
+assert (or_)(true_)(false_) == (true_)
+assert (or_)(true_)(false_) == (true_)
+assert (or_)(false_)(false_) == (false_)
+
+assert (not_)(true_)(True)(False) == False
+assert (not_)(false_)(True)(False) == True
+
+assert (and_)(true_)(false_) == (false_)
+# simple way to "unchurch" => (True)(False) trick
+assert (and_)(true_)(false_)(True)(False) == False
+
+
+# Church Data structure Encoding (Pairs)
+
+pair_   = lambda x: lambda y: lambda z: (z)(x)(y)
+first_  = lambda p: (p)(true_)
+second_ = lambda a: (a)(false_)
+
+assert (first_)((pair_)(1)(2)) == 1
+assert (second_)((pair_)(1)(2)) == 2
+
+# pair is a nice way replacing (True)(False) trick to "unchurch" Church bool into Python bool
+unchurch_bool_ = (pair_)(True)(False)
+
+assert (unchurch_bool_)((and_)(true_)(false_)) == False
+assert (unchurch_bool_)((or_)(false_)(true_)) == True
+assert (unchurch_bool_)((not_)(false_)) == True
+
+
+# Church numerals and calculations
+
+zero_ = false_  # => lambda f: lambda x: x
+
+# Compute the incrementor/successor of a Church numeral, n.
+# Apply function one more time.
+incr_ = lambda n: lambda f: lambda x: f(n(f)(x))
+
+one_ = incr_(zero_) # => lambda f: lambda x: f(x)
+two_ = incr_(one_)  # => lambda f: lambda x: f(f(x))
+three_ = incr_(two_)    # => lambda f: lambda x: f(f(f(x)))
+
+# function for "churching" numbers
+def church_number_(n):
+    return incr_(church_number_(n - 1)) if n else false_
+
+add_  = lambda m: lambda n: lambda f: lambda x: n(f)(m(f)(x))
+mult_ = lambda m: lambda n: lambda f: lambda x: n(m(f))(x)
+exp_  = lambda m: lambda n: n(m)     # n^m
+
+
+unchurch_num_ = lambda a: (a)(lambda b: b + 1)(0)
+
+assert (unchurch_num_)(zero_) == 0
+assert (unchurch_num_)(one_) == 1
+assert (unchurch_num_)(two_) == 2
+assert (unchurch_num_)(three_) == 3
+
+assert (unchurch_num_)((add_)(three_)(one_)) == 4
+assert (unchurch_num_)((add_)(zero_)(two_)) == 2
+assert (unchurch_num_)((mult_)(three_)(two_)) == 6
+assert (unchurch_num_)((mult_)(zero_)(one_)) == 0
+assert (unchurch_num_)((exp_)(three_)(two_)) == 9
+assert (unchurch_num_)((exp_)(zero_)(one_)) == 0
